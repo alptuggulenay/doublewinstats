@@ -89,18 +89,29 @@ export default async function Home() {
         </p>
       </div>
       
+      <div className="mb-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Güncel Tahminler
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              {formattedStartDate} - {formattedEndDate} tarihleri arasındaki maçlar
+            </p>
+          </div>
+          
+          <div className="mt-2 md:mt-0 flex items-center text-xs text-gray-500 dark:text-gray-400">
+            <span className="mr-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            Son güncelleme: {lastUpdateTime}
+          </div>
+        </div>
+      </div>
+      
       <div className="mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center mb-3 sm:mb-4">
-          <h2 className="text-xl font-semibold">Güncel Tahminler</h2>
-          <span className="text-sm text-gray-500 mt-1 sm:mt-0 sm:ml-3">
-            ({formattedStartDate} - {formattedEndDate})
-          </span>
-        </div>
-        
-        <div className="text-xs text-gray-500 mb-4">
-          Son güncelleme: {lastUpdateTime}
-        </div>
-        
         {predictions.length > 0 ? (
           <PredictionsTable predictions={predictions} />
         ) : (
