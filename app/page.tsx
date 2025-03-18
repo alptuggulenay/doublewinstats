@@ -1,8 +1,27 @@
 import { fetchMatchesForDateRange, predictMatches } from '@/lib/api';
 import PredictionsTable from '@/components/PredictionsTable';
+import { unstable_cache } from 'next/cache';
 
 // Statik build sırasında veriye erişirken hatayı önlemek için dinamik sayfa olarak işaretle
 export const dynamic = 'force-dynamic';
+
+// Maç verilerini önbellekleme fonksiyonu
+const getCachedMatches = unstable_cache(
+  async (startDate: string, endDate: string) => {
+    return await fetchMatchesForDateRange(startDate, endDate);
+  },
+  ['matches-data'],  // Önbellek anahtarı
+  { revalidate: 3600 }  // Her saat yeniden doğrula (saniye cinsinden)
+);
+
+// Tahminleri önbellekleme fonksiyonu
+const getCachedPredictions = unstable_cache(
+  async (matches: any[]) => {
+    return predictMatches(matches);
+  },
+  ['predictions-data'],  // Önbellek anahtarı
+  { revalidate: 3600 }  // Her saat yeniden doğrula
+);
 
 export default async function Home() {
   // Geçmiş 14 gün ve gelecek 7 gün için maçları çek
@@ -21,11 +40,13 @@ export default async function Home() {
   const endDateStr = endDate.toISOString().split('T')[0];
   
   console.time('Ana Sayfa Veri Çekme');
-  const matches = await fetchMatchesForDateRange(startDateStr, endDateStr);
+  // Önbellekten veri çek
+  const matches = await getCachedMatches(startDateStr, endDateStr);
   console.timeEnd('Ana Sayfa Veri Çekme');
   
   console.time('Ana Sayfa Tahmin Oluşturma');
-  const predictions = predictMatches(matches);
+  // Önbellekten tahminleri al
+  const predictions = await getCachedPredictions(matches);
   console.timeEnd('Ana Sayfa Tahmin Oluşturma');
   
   return (

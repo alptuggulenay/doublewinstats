@@ -71,10 +71,15 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
     
     if (data && data.data && data.data.matches) {
       try {
-        // İlk 2 maçın yapısını görmek için debug log ekleyelim
-        const sampleMatches = Object.entries(data.data.matches).slice(0, 2);
-        console.log(`Örnek maç verileri (ilk 2 maç):`, 
-          JSON.stringify(sampleMatches, null, 2).substring(0, 1000) + '...');
+        // Loglamayı azalt, sadece geliştirme modunda aktif et
+        if (process.env.NODE_ENV === 'development') {
+          // İlk 2 maçın yapısını görmek için debug log ekleyelim (örnekleme)
+          if (Math.random() < 0.1) { // Sadece %10 ihtimalle
+            const sampleMatches = Object.entries(data.data.matches).slice(0, 1);
+            console.log(`Örnek maç verisi:`, 
+              JSON.stringify(sampleMatches, null, 2).substring(0, 500) + '...');
+          }
+        }
         
         // API yanıtının matches objesi bir dizi değil, key-value map olduğu için Object.values kullanıyoruz
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,43 +89,8 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
         let iddaaMatchesCount = 0;
         let futureMatchesCount = 0;
         
-        // Olası iddaa kodlarının bulunduğu alanları kontrol et
-        const possibleIddaaFields = new Set<string>();
-        
-        // İlk 10 maçta potansiyel iddaa kodu içeren alanları ara
-        matchesArray.slice(0, 10).forEach(match => {
-          Object.keys(match).forEach(key => {
-            // İddaa ile ilgili olabilecek tüm alanları bul
-            if (key.toLowerCase().includes('iddaa') || 
-                key.toLowerCase().includes('code') || 
-                key.toLowerCase().includes('bet') || 
-                key.toLowerCase().includes('id')) {
-              possibleIddaaFields.add(key);
-            }
-          });
-        });
-        
-        console.log('Olası iddaa kodu alanları:', Array.from(possibleIddaaFields));
-        
-        // İlk 5 maç için detaylı inceleme yap
-        matchesArray.slice(0, 5).forEach((match, index) => {
-          console.log(`Maç ${index + 1} incelemesi:`);
-          console.log(`- Ev Sahibi: ${match.homeTeam?.name}`);
-          console.log(`- Deplasman: ${match.awayTeam?.name}`);
-          console.log(`- ID: ${match.id}`);
-          console.log(`- Durum: ${match.state}`);
-          console.log(`- Tarih: ${match.mstUtc ? new Date(+match.mstUtc).toLocaleString() : 'Bilinmiyor'}`);
-          Array.from(possibleIddaaFields).forEach(field => {
-            if (match[field]) {
-              console.log(`- ${field}: ${JSON.stringify(match[field])}`);
-            }
-          });
-          // Varsa market ve odds bilgilerini kontrol et
-          if (match.markets) {
-            console.log(`- Markets: ${JSON.stringify(match.markets).substring(0, 200)}...`);
-          }
-        });
-        
+        // Aşırı log temizlendi
+
         matchesArray.forEach((match) => {
           // null/undefined kontrolü yap
           if (!match || !match.homeTeam || !match.awayTeam) {
@@ -222,7 +192,10 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
           }
         });
         
-        console.log(`${date}: Toplam ${totalMatchesCount} maçtan, ${iddaaMatchesCount} maçta iddaa kodu var, ${matches.length} maç uygun (${futureMatchesCount} gelecek maç).`);
+        // Özet log - ayrıntı seviyesini azalttık
+        if (iddaaMatchesCount > 0 || matches.length > 0) {
+          console.log(`${date}: ${matches.length} maç işlendi (${futureMatchesCount} gelecek maç).`);
+        }
       } catch (parseError) {
         console.error('Veri ayrıştırma hatası:', parseError);
       }
@@ -250,49 +223,55 @@ export async function fetchMatchesForDateRange(startDate: string, endDate: strin
     dateArray.push(`${year}-${month}-${day}`);
   }
   
-  console.log(`Tarih aralığı: ${startDate} - ${endDate}, ${dateArray.length} gün için veri çekiliyor...`);
+  console.log(`Tarih aralığı: ${startDate} - ${endDate} (${dateArray.length} gün)`);
   
-  // Her tarih için maçları çek ve birleştir
+  // Paralel fetch optimizasyonu: Tarih aralığını gruplara böl
+  // Her grup için tek bir Promise.all çağrısı yap
   const allMatches: Match[] = [];
+  const BATCH_SIZE = 5; // Her grupta 5 tarih
   
-  // Paralel fetch işlemleri için Promise.all kullanarak tüm tarihlerin verilerini çekelim
-  // Bu, API hızını artıracak ve daha fazla veri alabileceğiz
+  // Tarihleri BATCH_SIZE büyüklüğünde gruplara ayır
+  const batches: string[][] = [];
+  for (let i = 0; i < dateArray.length; i += BATCH_SIZE) {
+    batches.push(dateArray.slice(i, i + BATCH_SIZE));
+  }
+  
   try {
-    const matchPromises = dateArray.map(async (date, index) => {
-      // API isteklerini fazla sıklaştırmamak için aralıklarla yapalım
-      await new Promise(resolve => setTimeout(resolve, index * 100));
-      try {
-        const matches = await fetchFootballData(date);
-        console.log(`${date}: ${matches.length} maç bulundu`);
-        return matches;
-      } catch (error) {
-        console.error(`${date} tarihi için veri çekme hatası:`, error);
-        return [];
-      }
-    });
-    
-    const matchesArrays = await Promise.all(matchPromises);
-    matchesArrays.forEach(matches => {
-      allMatches.push(...matches);
-    });
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      console.log(`${i+1}/${batches.length}. grup tarihler işleniyor...`);
+      
+      // Her gruptaki tarihler için paralel veri çekme
+      const batchPromises = batch.map(async (date) => {
+        try {
+          return await fetchFootballData(date);
+        } catch (error) {
+          console.error(`${date} tarihi için veri çekme hatası:`, error);
+          return [];
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      batchResults.forEach(matches => {
+        allMatches.push(...matches);
+      });
+    }
   } catch (error) {
     console.error('Toplu veri çekme hatası:', error);
   }
   
   console.log(`Toplam ${allMatches.length} maç bulundu.`);
   
-  // Takımları ve ligleri kontrol et
-  const uniqueTeams = new Set<string>();
-  const uniqueCompetitions = new Set<string>();
+  // Takım ve lig sayısını hesapla (minimum loglama)
+  const teamCount = new Set(allMatches.flatMap(match => 
+    [match.homeTeam?.name, match.awayTeam?.name].filter(Boolean)
+  )).size;
   
-  allMatches.forEach(match => {
-    if (match.homeTeam?.name) uniqueTeams.add(match.homeTeam.name);
-    if (match.awayTeam?.name) uniqueTeams.add(match.awayTeam.name);
-    if (match.competition) uniqueCompetitions.add(match.competition);
-  });
+  const competitionCount = new Set(
+    allMatches.map(match => match.competition).filter(Boolean)
+  ).size;
   
-  console.log(`Benzersiz takım sayısı: ${uniqueTeams.size}`);
-  console.log(`Benzersiz lig/turnuva sayısı: ${uniqueCompetitions.size}`);
+  console.log(`${teamCount} takım, ${competitionCount} turnuva/lig`);
   
   return allMatches;
 }
@@ -304,12 +283,7 @@ export function getTeamMatches(matches: Match[], teamName: string): Match[] {
   // Takım isimlerini normalize et ve case-insensitive eşleştir
   const normalizedTeamName = teamName.toLowerCase().trim();
   
-  // Debug için rastgele 5 takımın eşleşmelerini gösterelim
-  const shouldLog = Math.random() < 0.01; // %1 ihtimalle log yap
-  
-  if (shouldLog) {
-    console.log(`[Takım Eşleştirme] "${teamName}" için maçlar aranıyor`);
-  }
+  // Loglama kaldırıldı (performans için)
   
   const teamMatches = matches.filter(match => {
     // Takım adı tam olarak eşleşmiyorsa bile, alt string olarak içinde geçiyorsa kabul et
@@ -326,28 +300,14 @@ export function getTeamMatches(matches: Match[], teamName: string): Match[] {
       homeTeamName.includes(normalizedTeamName) || 
       awayTeamName.includes(normalizedTeamName);
     
-    if (shouldLog && (isExactMatch || isPartialMatch)) {
-      console.log(`  - Eşleşen maç: ${match.homeTeam.name} vs ${match.awayTeam.name}, Skor: ${match.score.home}-${match.score.away}`);
-    }
-    
     // Önce tam eşleşme varsa onu kullan, yoksa partial eşleşme
     return isExactMatch || isPartialMatch;
   });
   
   // Tarihe göre sırala - en yeni maçlar başta
-  const sortedMatches = teamMatches.sort((a, b) => 
+  return teamMatches.sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
-  
-  if (shouldLog) {
-    console.log(`  Toplam ${sortedMatches.length} maç bulundu.`);
-    console.log(`  İlk 2 maç:`);
-    sortedMatches.slice(0, 2).forEach((match, i) => {
-      console.log(`    Maç ${i+1}: ${match.homeTeam.name} ${match.score.home}-${match.score.away} ${match.awayTeam.name}`);
-    });
-  }
-  
-  return sortedMatches;
 }
 
 // Takımın son maçlarını analiz eden fonksiyon
@@ -368,7 +328,6 @@ export function analyzeTeamLastMatches(teamMatches: Match[], teamName: string): 
   // Eksik veri kontrolü
   if (!match1.score || !match1.homeTeam || !match1.awayTeam || 
       !match2.score || !match2.homeTeam || !match2.awayTeam) {
-    console.log(`[Hata] ${teamName} için eksik maç verisi`);
     return false;
   }
   
@@ -383,8 +342,7 @@ export function analyzeTeamLastMatches(teamMatches: Match[], teamName: string): 
   const home2 = parseInt(homeScore2);
   const away2 = parseInt(awayScore2);
   
-  // Debug: Skorları logla
-  console.log(`[Analiz] ${teamName} - 1. Maç: ${home1}-${away1}, 2. Maç: ${home2}-${away2}`);
+  // Debug log kaldırıldı (performans için)
   
   // 1. Maç için kontrol (0-1 veya 1-0)
   const isFirstMatchValid = 
@@ -397,21 +355,7 @@ export function analyzeTeamLastMatches(teamMatches: Match[], teamName: string): 
     (home2 === 2 && away2 === 1);
   
   // Her iki maç da kriterlere uygun olmalı
-  if (isFirstMatchValid && isSecondMatchValid) {
-    console.log(`[TAHMİN] ${teamName} - 1. Maç (${home1}-${away1}) ve 2. Maç (${home2}-${away2}) kriterlere uygun!`);
-    return true;
-  }
-  
-  // Kriterler uyuşmadıysa nedenini logla
-  if (!isFirstMatchValid) {
-    console.log(`[Uyuşmadı] ${teamName} - 1. Maç (${home1}-${away1}) geçerli değil. 0-1 veya 1-0 olmalı.`);
-  }
-  
-  if (!isSecondMatchValid) {
-    console.log(`[Uyuşmadı] ${teamName} - 2. Maç (${home2}-${away2}) geçerli değil. 1-2 veya 2-1 olmalı.`);
-  }
-  
-  return false;
+  return isFirstMatchValid && isSecondMatchValid;
 }
 
 // Maçları etiketleyerek kolayca bulanabilir hale getir
@@ -443,23 +387,30 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
   }
   
   const predictions: MatchPrediction[] = [];
-  const teams = new Set<string>();
   
-  // Tüm takımları bul
+  // Performans optimizasyonu: Tüm takımları önce topla, sonra işle
+  const uniqueTeams = new Set<string>();
   allMatches.forEach(match => {
-    if (match.homeTeam?.name) teams.add(match.homeTeam.name);
-    if (match.awayTeam?.name) teams.add(match.awayTeam.name);
+    if (match.homeTeam?.name) uniqueTeams.add(match.homeTeam.name);
+    if (match.awayTeam?.name) uniqueTeams.add(match.awayTeam.name);
   });
   
-  console.log(`${teams.size} takım analiz ediliyor...`);
-  let processed = 0;
+  const teams = Array.from(uniqueTeams);
+  console.log(`${teams.length} takım analiz ediliyor...`);
+  
+  // Tahmin istatistikleri
   let teamsWithEnoughMatches = 0;
   let teamsWithValidScores = 0;
   let teamsWithPredictions = 0;
   
   // Her takım için analiz yap
-  teams.forEach(team => {
+  teams.forEach((team, index) => {
     try {
+      // İlerleme göster (her 500 takımda bir)
+      if ((index + 1) % 500 === 0 || index + 1 === teams.length) {
+        console.log(`${index + 1}/${teams.length} takım işlendi...`);
+      }
+      
       // Takımın tüm maçlarını bul ve etiketle
       const taggedMatches = tagMatchesForTeam(allMatches, team);
       const pastMatches = taggedMatches.past;
@@ -481,13 +432,9 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
         const match1 = pastMatches[1]; // Daha eski maç
         const match2 = pastMatches[0]; // Daha yeni maç
         
-        // Skorları göster
+        // Skorları hazırla
         const score1 = `${match1.score.home}-${match1.score.away}`;
         const score2 = `${match2.score.home}-${match2.score.away}`;
-        
-        console.log(`[TAHMİN] ${team} için uygun skor dizisi bulundu!`);
-        console.log(`  1. Maç: ${score1} (${match1.homeTeam.name} vs ${match1.awayTeam.name})`);
-        console.log(`  2. Maç: ${score2} (${match2.homeTeam.name} vs ${match2.awayTeam.name})`);
         
         // Şimdi 3. maçı bul (üçüncü maç, gelecekteki ilk maç veya sonraki en yakın maç olabilir)
         let thirdMatch: Match | null = null;
@@ -495,7 +442,6 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
         // Önce: Gelecek maçları kontrol et
         if (futureMatches.length > 0) {
           thirdMatch = futureMatches[0];
-          console.log(`  3. Maç: ${thirdMatch.homeTeam.name} vs ${thirdMatch.awayTeam.name} - Tarih: ${new Date(thirdMatch.date).toLocaleDateString()}`);
         }
         
         // Eğer gelecek maç yoksa, kronolojik olarak bir sonraki maçı bul
@@ -512,7 +458,6 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
           
           if (nextMatch) {
             thirdMatch = nextMatch;
-            console.log(`  3. Maç (kronolojik): ${thirdMatch.homeTeam.name} vs ${thirdMatch.awayTeam.name} - Tarih: ${new Date(thirdMatch.date).toLocaleDateString()}`);
           }
         }
         
@@ -533,28 +478,19 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
             confidence: 0.85,
             lastTwoScores: [score1, score2]
           });
-        } else {
-          console.log(`[Uyarı] ${team} için 3. maç bulunamadı, ama kriterlere uygun.`);
         }
       }
-      
-      // Her 500 takımda bir ilerleme göster
-      processed++;
-      if (processed % 500 === 0 || processed === teams.size) {
-        console.log(`${processed}/${teams.size} takım işlendi...`);
-      }
     } catch (error) {
-      console.error(`${team} takımı için analiz hatası:`, error);
+      // Hata loglaması azaltıldı
+      console.error(`Takım analiz hatası: ${team}`);
     }
   });
   
   console.log(`
-    Toplam takım: ${teams.size}
-    Yeterli maçı olan takım: ${teamsWithEnoughMatches}
-    Geçerli skorları olan takım: ${teamsWithValidScores}
-    Tahmin oluşturulan takım: ${teamsWithPredictions}
+    Toplam: ${teams.length} takım 
+    Tahmin: ${predictions.length} 
+    (Yeterli maç: ${teamsWithEnoughMatches}, Uygun skor: ${teamsWithValidScores})
   `);
   
-  console.log(`${predictions.length} tahmin bulundu.`);
   return predictions;
 } 

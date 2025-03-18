@@ -33,37 +33,45 @@ export default function PredictionsTable({ predictions }: { predictions: MatchPr
   }
 
   return (
-    <div className="my-8">
-      <div className="rounded-md border">
+    <div className="my-8 flex justify-center">
+      <div className="rounded-md border max-w-4xl w-full">
         <Table>
           <TableCaption>Maç takımlarının son 2 maç istatistiklerine göre tahminler</TableCaption>
-          <TableHeader>
+          <TableHeader className="text-center">
             <TableRow>
-              <TableHead>Tarih</TableHead>
-              <TableHead>Saat</TableHead>
-              <TableHead>Maç</TableHead>
-              <TableHead>Analiz Edilen Takım</TableHead>
-              <TableHead>Tahmin</TableHead>
+              <TableHead className="text-center">Tarih ve Saat</TableHead>
+              <TableHead className="text-center">Maç</TableHead>
+              <TableHead className="text-center">Analiz Edilen Takım</TableHead>
+              <TableHead className="text-center">Son 2 Maç</TableHead>
+              <TableHead className="text-center">Tahmin</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {predictions.map((prediction, index) => (
-              <TableRow key={`${prediction.matchId}_${index}_${prediction.team}`}>
-                <TableCell className="font-medium whitespace-nowrap">
-                  {formatDate(prediction.matchDate)}
+              <TableRow key={`${prediction.matchId}_${index}_${prediction.team}`} className="text-center">
+                <TableCell className="font-medium whitespace-nowrap text-center">
+                  {formatDate(prediction.matchDate)} {prediction.matchTime || "--:--"}
                 </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  {prediction.matchTime || "--:--"}
-                </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   {prediction.homeTeam} - {prediction.awayTeam}
                 </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="font-normal">
+                <TableCell className="text-center">
+                  <Badge variant="outline" className="font-normal mx-auto">
                     {prediction.team}
                   </Badge>
                 </TableCell>
-                <TableCell>{prediction.prediction}</TableCell>
+                <TableCell className="text-center whitespace-nowrap">
+                  {prediction.lastTwoScores && prediction.lastTwoScores.length >= 2 ? (
+                    <span className="text-sm font-medium">
+                      {prediction.lastTwoScores[0]} → {prediction.lastTwoScores[1]}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-500">Veri yok</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {prediction.prediction.split('(')[0].trim()}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
