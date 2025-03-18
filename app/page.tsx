@@ -1,6 +1,9 @@
 import { fetchMatchesForDateRange, predictMatches } from '@/lib/api';
 import PredictionsTable from '@/components/PredictionsTable';
 
+// Statik build sırasında veriye erişirken hatayı önlemek için dinamik sayfa olarak işaretle
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   // Geçmiş 14 gün ve gelecek 7 gün için maçları çek
   const today = new Date();
@@ -27,7 +30,19 @@ export default async function Home() {
   
   return (
     <main className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6 text-center">Double Win İY/MS Tahmin Sistemi</h1>
+      <h1 className="text-2xl font-bold mb-6 text-center">DoubleWinStats</h1>
+      
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Tahminler</h2>
+        {predictions.length > 0 ? (
+          <PredictionsTable predictions={predictions} />
+        ) : (
+          <div className="text-center py-4 bg-yellow-50 border border-yellow-100 rounded">
+            <p>Sistem kriterlerine uygun tahmin bulunamadı.</p>
+            <p className="text-sm text-gray-500 mt-2">Veri toplam {matches.length} maç içeriyor.</p>
+          </div>
+        )}
+      </div>
       
       <div className="mb-8 bg-slate-100 p-4 rounded-lg">
         <h2 className="text-xl font-semibold mb-2">Sistem Nasıl Çalışır?</h2>
@@ -44,18 +59,6 @@ export default async function Home() {
             </ul>
           </li>
         </ul>
-      </div>
-      
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Tahminler</h2>
-        {predictions.length > 0 ? (
-          <PredictionsTable predictions={predictions} />
-        ) : (
-          <div className="text-center py-4 bg-yellow-50 border border-yellow-100 rounded">
-            <p>Sistem kriterlerine uygun tahmin bulunamadı.</p>
-            <p className="text-sm text-gray-500 mt-2">Veri toplam {matches.length} maç içeriyor.</p>
-          </div>
-        )}
       </div>
     </main>
   );

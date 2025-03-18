@@ -20,6 +20,7 @@ export interface Match {
     } | null;
   };
   date: string;
+  time?: string; // Maç saati
   status: string;
   state: string;
   competition?: string;
@@ -37,6 +38,7 @@ export interface MatchPrediction {
   homeTeam: string;
   awayTeam: string;
   matchDate: string;
+  matchTime?: string; // Maç saati
   matchId: string;
   prediction: string;
   confidence: number;
@@ -49,7 +51,6 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
     const response = await fetch(
       `https://www.mackolik.com/perform/p0/ajax/components/competition/livescores/json?sports[]=Soccer&matchDate=${date}`,
       {
-        cache: 'no-store',
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
@@ -76,6 +77,7 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
           JSON.stringify(sampleMatches, null, 2).substring(0, 1000) + '...');
         
         // API yanıtının matches objesi bir dizi değil, key-value map olduğu için Object.values kullanıyoruz
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const matchesArray = Object.values(data.data.matches) as Array<any>;
         
         totalMatchesCount = matchesArray.length;
@@ -141,6 +143,13 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
             ? new Date(typeof match.mstUtc === 'string' ? parseInt(match.mstUtc) : match.mstUtc) 
             : new Date();
           
+          // Maç saatini formatla (saat:dakika)
+          const matchTime = matchDate.toLocaleTimeString('tr-TR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+          
           // İki kategori oluştur: Tamamlanmış maçlar ve henüz oynanmamış/gelecek maçlar          
           // 1. Tamamlanmış maçlar - state=post olan maçlar
           if (match.state === "post" && match.status === "state" && match.score) {
@@ -174,6 +183,7 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
                 } : null
               },
               date: matchDate.toISOString(),
+              time: matchTime,
               status: match.status || "unknown",
               state: match.state || "unknown",
               competition: match.competitionId || undefined,
@@ -203,6 +213,7 @@ export async function fetchFootballData(date: string): Promise<Match[]> {
                 ht: null
               },
               date: matchDate.toISOString(),
+              time: matchTime,
               status: match.status || "scheduled",
               state: match.state || "pre",
               competition: match.competitionId || undefined,
@@ -348,48 +359,56 @@ export function analyzeTeamLastMatches(teamMatches: Match[], teamName: string): 
   
   const lastTwoMatches = teamMatches.slice(0, 2);
   
-  // Skor kontrolü için sayaç
-  let validScoreCount = 0;
+  // Sıra önemli:
+  // İkinci maç (en son maç) - index 0
+  const match2 = lastTwoMatches[0];
+  // Birinci maç (daha önceki maç) - index 1
+  const match1 = lastTwoMatches[1];
   
-  // Her maç için, skorların 1-0, 2-1, 0-1 veya 1-2 olmasını kontrol et
-  for (const match of lastTwoMatches) {
-    // Eksik veri kontrolü
-    if (!match.score || !match.homeTeam || !match.awayTeam) {
-      console.log(`[Hata] ${teamName} için eksik maç verisi:`, match.id);
-      continue;
-    }
-    
-    // Ham skorları temizle ve integer'a çevir
-    let homeScoreStr = match.score.home?.toString() || "0";
-    let awayScoreStr = match.score.away?.toString() || "0";
-    
-    // Eğer ondalık sayı formatında ise sadece tam sayı kısmını al
-    homeScoreStr = homeScoreStr.split('.')[0];
-    awayScoreStr = awayScoreStr.split('.')[0];
-    
-    const homeScore = parseInt(homeScoreStr);
-    const awayScore = parseInt(awayScoreStr);
-    
-    // Debug: Skorları logla
-    console.log(`[Analiz] ${teamName} - Maç skoru: ${homeScore}-${awayScore}, ID: ${match.id}`);
-    
-    // Skorların belirtilen değerlerde olup olmadığını kontrol et
-    const isValidScore = 
-      (homeScore === 1 && awayScore === 0) || 
-      (homeScore === 2 && awayScore === 1) ||
-      (homeScore === 0 && awayScore === 1) ||
-      (homeScore === 1 && awayScore === 2);
-    
-    if (isValidScore) {
-      validScoreCount++;
-      console.log(`[Başarı] ${teamName} için geçerli skor bulundu: ${homeScore}-${awayScore}`);
-    }
+  // Eksik veri kontrolü
+  if (!match1.score || !match1.homeTeam || !match1.awayTeam || 
+      !match2.score || !match2.homeTeam || !match2.awayTeam) {
+    console.log(`[Hata] ${teamName} için eksik maç verisi`);
+    return false;
   }
   
-  // Her iki maç birden kriterlere uygun olsun
-  if (validScoreCount === 2) {
-    console.log(`[TAHMİN] ${teamName} takımı için BAŞARILI tahmin oluşturulacak!`);
+  // Ham skorları temizle ve integer'a çevir
+  const homeScore1 = match1.score.home?.toString().split('.')[0] || "0";
+  const awayScore1 = match1.score.away?.toString().split('.')[0] || "0";
+  const homeScore2 = match2.score.home?.toString().split('.')[0] || "0";
+  const awayScore2 = match2.score.away?.toString().split('.')[0] || "0";
+  
+  const home1 = parseInt(homeScore1);
+  const away1 = parseInt(awayScore1);
+  const home2 = parseInt(homeScore2);
+  const away2 = parseInt(awayScore2);
+  
+  // Debug: Skorları logla
+  console.log(`[Analiz] ${teamName} - 1. Maç: ${home1}-${away1}, 2. Maç: ${home2}-${away2}`);
+  
+  // 1. Maç için kontrol (0-1 veya 1-0)
+  const isFirstMatchValid = 
+    (home1 === 0 && away1 === 1) || 
+    (home1 === 1 && away1 === 0);
+  
+  // 2. Maç için kontrol (1-2 veya 2-1)
+  const isSecondMatchValid = 
+    (home2 === 1 && away2 === 2) || 
+    (home2 === 2 && away2 === 1);
+  
+  // Her iki maç da kriterlere uygun olmalı
+  if (isFirstMatchValid && isSecondMatchValid) {
+    console.log(`[TAHMİN] ${teamName} - 1. Maç (${home1}-${away1}) ve 2. Maç (${home2}-${away2}) kriterlere uygun!`);
     return true;
+  }
+  
+  // Kriterler uyuşmadıysa nedenini logla
+  if (!isFirstMatchValid) {
+    console.log(`[Uyuşmadı] ${teamName} - 1. Maç (${home1}-${away1}) geçerli değil. 0-1 veya 1-0 olmalı.`);
+  }
+  
+  if (!isSecondMatchValid) {
+    console.log(`[Uyuşmadı] ${teamName} - 2. Maç (${home2}-${away2}) geçerli değil. 1-2 veya 2-1 olmalı.`);
   }
   
   return false;
@@ -438,11 +457,6 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
   let teamsWithValidScores = 0;
   let teamsWithPredictions = 0;
   
-  // Tarihe göre tüm maçları sırala (kronolojik olarak)
-  const sortedMatches = [...allMatches].sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
-  
   // Her takım için analiz yap
   teams.forEach(team => {
     try {
@@ -458,44 +472,22 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
       
       teamsWithEnoughMatches++;
       
-      // İlk iki maçı sistem için analiz et
-      const lastTwoMatches = pastMatches.slice(0, 2);
-      
-      // Son iki maçı analiz et
-      let validScoreCount = 0;
-      let validScores = [];
-      
-      // Her maç için skorları kontrol et - 1-0, 2-1, 0-1, 1-2
-      for (const match of lastTwoMatches) {
-        if (!match.score) continue;
-        
-        // Skorları temizle ve sayılara dönüştür
-        let homeScoreStr = match.score.home?.toString().split('.')[0] || "0";
-        let awayScoreStr = match.score.away?.toString().split('.')[0] || "0";
-        
-        const homeScore = parseInt(homeScoreStr);
-        const awayScore = parseInt(awayScoreStr);
-        
-        console.log(`[Analiz] ${team} - Maç: ${match.homeTeam.name} ${homeScore}-${awayScore} ${match.awayTeam.name}`);
-        
-        const isValidScore = 
-          (homeScore === 1 && awayScore === 0) || 
-          (homeScore === 2 && awayScore === 1) ||
-          (homeScore === 0 && awayScore === 1) ||
-          (homeScore === 1 && awayScore === 2);
-        
-        if (isValidScore) {
-          validScoreCount++;
-          validScores.push(`${homeScore}-${awayScore}`);
-          console.log(`[Başarı] ${team} için geçerli skor: ${homeScore}-${awayScore}`);
-        }
-      }
-      
-      // Her iki maç da belirtilen skorlarla bittiyse tahmin yap
-      if (validScoreCount === 2) {
+      // Takım için uygun skor sıralaması var mı?
+      // İlk maç (1-0 veya 0-1), ikinci maç (2-1 veya 1-2) olmalı
+      if (analyzeTeamLastMatches(pastMatches, team)) {
         teamsWithValidScores++;
         
-        console.log(`[TAHMİN] ${team} takımı iki maçta da uygun skorlara sahip: ${validScores.join(', ')}!`);
+        // İlk 2 maçın skorlarını alalım
+        const match1 = pastMatches[1]; // Daha eski maç
+        const match2 = pastMatches[0]; // Daha yeni maç
+        
+        // Skorları göster
+        const score1 = `${match1.score.home}-${match1.score.away}`;
+        const score2 = `${match2.score.home}-${match2.score.away}`;
+        
+        console.log(`[TAHMİN] ${team} için uygun skor dizisi bulundu!`);
+        console.log(`  1. Maç: ${score1} (${match1.homeTeam.name} vs ${match1.awayTeam.name})`);
+        console.log(`  2. Maç: ${score2} (${match2.homeTeam.name} vs ${match2.awayTeam.name})`);
         
         // Şimdi 3. maçı bul (üçüncü maç, gelecekteki ilk maç veya sonraki en yakın maç olabilir)
         let thirdMatch: Match | null = null;
@@ -503,6 +495,7 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
         // Önce: Gelecek maçları kontrol et
         if (futureMatches.length > 0) {
           thirdMatch = futureMatches[0];
+          console.log(`  3. Maç: ${thirdMatch.homeTeam.name} vs ${thirdMatch.awayTeam.name} - Tarih: ${new Date(thirdMatch.date).toLocaleDateString()}`);
         }
         
         // Eğer gelecek maç yoksa, kronolojik olarak bir sonraki maçı bul
@@ -512,13 +505,14 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           
           // Son iki maçtan sonraki ilk maçı bul
-          const lastMatchDate = new Date(lastTwoMatches[0].date);
+          const lastMatchDate = new Date(match2.date);
           const nextMatch = allTeamMatches.find(match => 
             new Date(match.date).getTime() > lastMatchDate.getTime()
           );
           
           if (nextMatch) {
             thirdMatch = nextMatch;
+            console.log(`  3. Maç (kronolojik): ${thirdMatch.homeTeam.name} vs ${thirdMatch.awayTeam.name} - Tarih: ${new Date(thirdMatch.date).toLocaleDateString()}`);
           }
         }
         
@@ -526,19 +520,18 @@ export function predictMatches(allMatches: Match[]): MatchPrediction[] {
         if (thirdMatch) {
           teamsWithPredictions++;
           
-          console.log(`[TAHMİN BAŞARILI] ${team} için 3. maç: ${thirdMatch.homeTeam.name} vs ${thirdMatch.awayTeam.name}`);
-          console.log(`  Son 2 maç skorları: ${validScores.join(', ')}`);
-          console.log(`  3. maç tarihi: ${new Date(thirdMatch.date).toLocaleDateString()}`);
+          const tahminMetni = `İY/MS: 1/2 veya 2/1 (${score1} → ${score2})`;
           
           predictions.push({
             team: team,
             homeTeam: thirdMatch.homeTeam.name,
             awayTeam: thirdMatch.awayTeam.name,
             matchDate: thirdMatch.date,
+            matchTime: thirdMatch.time,
             matchId: thirdMatch.id,
-            prediction: "İY/MS: 1/2 veya 2/1",
+            prediction: tahminMetni,
             confidence: 0.85,
-            lastTwoScores: validScores
+            lastTwoScores: [score1, score2]
           });
         } else {
           console.log(`[Uyarı] ${team} için 3. maç bulunamadı, ama kriterlere uygun.`);

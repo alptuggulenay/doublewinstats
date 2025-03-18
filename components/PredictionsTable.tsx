@@ -1,6 +1,6 @@
 "use client";
 
-import { Match, MatchPrediction } from '@/lib/api';
+import { MatchPrediction } from '@/lib/api';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
@@ -40,6 +40,7 @@ export default function PredictionsTable({ predictions }: { predictions: MatchPr
           <TableHeader>
             <TableRow>
               <TableHead>Tarih</TableHead>
+              <TableHead>Saat</TableHead>
               <TableHead>Maç</TableHead>
               <TableHead>Analiz Edilen Takım</TableHead>
               <TableHead>Tahmin</TableHead>
@@ -50,6 +51,9 @@ export default function PredictionsTable({ predictions }: { predictions: MatchPr
               <TableRow key={`${prediction.matchId}_${index}_${prediction.team}`}>
                 <TableCell className="font-medium whitespace-nowrap">
                   {formatDate(prediction.matchDate)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {prediction.matchTime || "--:--"}
                 </TableCell>
                 <TableCell>
                   {prediction.homeTeam} - {prediction.awayTeam}

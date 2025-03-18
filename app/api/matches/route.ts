@@ -47,18 +47,4 @@ export async function GET(request: NextRequest) {
       status: 'error',
     }, { status: 500 });
   }
-}
-
-// Varsayılan başlangıç tarihi (14 gün öncesi)
-function getDefaultStartDate(): string {
-  const date = new Date();
-  date.setDate(date.getDate() - 14);
-  return date.toISOString().split('T')[0];
-}
-
-// Varsayılan bitiş tarihi (7 gün sonrası)
-function getDefaultEndDate(): string {
-  const date = new Date();
-  date.setDate(date.getDate() + 7);
-  return date.toISOString().split('T')[0];
 } 
