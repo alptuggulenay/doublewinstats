@@ -61,13 +61,13 @@ export default function PredictionsTable({ predictions }: { predictions: MatchPr
     <div className="my-8 flex justify-center">
       <div className="rounded-md border max-w-7xl w-full">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-slate-100 dark:bg-slate-800">
             <TableRow>
-              <TableHead>Tarih ve Saat</TableHead>
-              <TableHead>Maç</TableHead>
-              <TableHead>Analiz Edilen Takım</TableHead>
-              <TableHead>Son 2 Maç</TableHead>
-              <TableHead>Tahmin</TableHead>
+              <TableHead className="font-bold text-slate-700 dark:text-slate-300 py-4">Tarih ve Saat</TableHead>
+              <TableHead className="font-bold text-slate-700 dark:text-slate-300 py-4">Maç</TableHead>
+              <TableHead className="font-bold text-slate-700 dark:text-slate-300 py-4">Analiz Edilen Takım</TableHead>
+              <TableHead className="font-bold text-slate-700 dark:text-slate-300 py-4">Son 2 Maç</TableHead>
+              <TableHead className="font-bold text-slate-700 dark:text-slate-300 py-4">Tahmin</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

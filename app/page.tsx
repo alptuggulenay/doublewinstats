@@ -51,7 +51,14 @@ export default async function Home() {
   
   return (
     <main className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6 text-center">DoubleWinStats</h1>
+      <div className="text-center py-6 mb-8">
+        <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-green-600 text-transparent bg-clip-text">
+          DoubleWinStats
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
+          Futbol İstatistikleri ve Tahmin Analizi
+        </p>
+      </div>
       
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Tahminler</h2>
