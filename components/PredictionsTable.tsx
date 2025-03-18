@@ -32,35 +32,59 @@ export default function PredictionsTable({ predictions }: { predictions: MatchPr
     );
   }
 
+  // Tahminleri tarih ve saate göre sırala
+  const sortedPredictions = [...predictions].sort((a, b) => {
+    // Önce tarihleri karşılaştır
+    const dateA = new Date(a.matchDate);
+    const dateB = new Date(b.matchDate);
+    
+    if (dateA.getTime() !== dateB.getTime()) {
+      return dateA.getTime() - dateB.getTime();
+    }
+    
+    // Tarihler aynıysa, saati karşılaştır
+    if (a.matchTime && b.matchTime) {
+      const [hoursA, minutesA] = a.matchTime.split(':').map(Number);
+      const [hoursB, minutesB] = b.matchTime.split(':').map(Number);
+      
+      if (hoursA !== hoursB) {
+        return hoursA - hoursB;
+      }
+      return minutesA - minutesB;
+    }
+    
+    // Saat bilgisi yoksa, tarihe göre sırala
+    return 0;
+  });
+
   return (
     <div className="my-8 flex justify-center">
-      <div className="rounded-md border max-w-4xl w-full">
+      <div className="rounded-md border max-w-7xl w-full">
         <Table>
-          <TableCaption>Maç takımlarının son 2 maç istatistiklerine göre tahminler</TableCaption>
-          <TableHeader className="text-center">
+          <TableHeader>
             <TableRow>
-              <TableHead className="text-center">Tarih ve Saat</TableHead>
-              <TableHead className="text-center">Maç</TableHead>
-              <TableHead className="text-center">Analiz Edilen Takım</TableHead>
-              <TableHead className="text-center">Son 2 Maç</TableHead>
-              <TableHead className="text-center">Tahmin</TableHead>
+              <TableHead>Tarih ve Saat</TableHead>
+              <TableHead>Maç</TableHead>
+              <TableHead>Analiz Edilen Takım</TableHead>
+              <TableHead>Son 2 Maç</TableHead>
+              <TableHead>Tahmin</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {predictions.map((prediction, index) => (
-              <TableRow key={`${prediction.matchId}_${index}_${prediction.team}`} className="text-center">
-                <TableCell className="font-medium whitespace-nowrap text-center">
+            {sortedPredictions.map((prediction, index) => (
+              <TableRow key={`${prediction.matchId}_${index}_${prediction.team}`}>
+                <TableCell className="font-medium whitespace-nowrap">
                   {formatDate(prediction.matchDate)} {prediction.matchTime || "--:--"}
                 </TableCell>
-                <TableCell className="text-center">
+                <TableCell>
                   {prediction.homeTeam} - {prediction.awayTeam}
                 </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className="font-normal mx-auto">
+                <TableCell>
+                  <Badge variant="outline" className="font-normal">
                     {prediction.team}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center whitespace-nowrap">
+                <TableCell className="whitespace-nowrap">
                   {prediction.lastTwoScores && prediction.lastTwoScores.length >= 2 ? (
                     <span className="text-sm font-medium">
                       {prediction.lastTwoScores[0]} → {prediction.lastTwoScores[1]}
@@ -69,7 +93,7 @@ export default function PredictionsTable({ predictions }: { predictions: MatchPr
                     <span className="text-sm text-gray-500">Veri yok</span>
                   )}
                 </TableCell>
-                <TableCell className="text-center">
+                <TableCell>
                   {prediction.prediction.split('(')[0].trim()}
                 </TableCell>
               </TableRow>
